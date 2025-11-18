@@ -4,7 +4,7 @@ export default function Navbar({ user, onLogout }) {
   return (
     <header className="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-20">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        <Link to="/" className="font-semibold text-slate-900 text-xl">UniNest Hub</Link>
+        <Link to="/" className="font-semibold text-slate-900 text-xl">PropertySource</Link>
         <nav className="hidden md:flex items-center gap-6 text-slate-700">
           <Link to="/">Home</Link>
           <Link to="/homes">Search homes</Link>
