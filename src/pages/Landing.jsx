@@ -1,36 +1,49 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { Home, BedDouble, MapPin, Search, ShieldCheck, CalendarClock, Sparkles, ArrowRight, Building2, Users } from 'lucide-react'
+
 import Navbar from '../components/Navbar'
 import PropertyCard from '../components/PropertyCard'
-import { apiGet } from '../utils/api'
-import { Link, useNavigate } from 'react-router-dom'
+import { apiGet, apiPost, API_BASE } from '../utils/api'
 
 export default function Landing() {
   const [universities, setUniversities] = useState([])
   const [featured, setFeatured] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [user, setUser] = useState(() => {
     const u = localStorage.getItem('user')
     return u ? JSON.parse(u) : null
   })
+
   const [q, setQ] = useState('')
   const [uniId, setUniId] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
-    apiGet('/universities').then(setUniversities).catch(() => {})
-    // Load a few properties
-    fetchFeatured()
+    init()
   }, [])
 
-  async function fetchFeatured() {
+  async function init() {
+    setLoading(true)
+    setError('')
     try {
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}/properties/search`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      })
-      const data = await res.json()
-      setFeatured(data.slice(0, 6))
-    } catch (e) {}
+      const uni = await apiGet('/universities')
+      if (!uni || uni.length === 0) {
+        // auto-seed if empty
+        await apiPost('/seed')
+      }
+      const finalUni = uni && uni.length ? uni : await apiGet('/universities')
+      setUniversities(finalUni)
+
+      const results = await apiPost('/properties/search', {})
+      setFeatured((results || []).slice(0, 6))
+    } catch (e) {
+      setError('We had trouble loading content. Please try again in a moment.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   function onLogout() {
@@ -49,98 +62,176 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white text-slate-900">
       <Navbar user={user} onLogout={onLogout} />
 
+      {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-sky-50"/>
-        <div className="relative max-w-6xl mx-auto px-4 py-16 md:py-24">
-          <div className="max-w-2xl">
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-slate-900">Find your next student home in minutes</h1>
-            <p className="mt-4 text-lg text-slate-600">Search verified student houses and rooms by area, bedrooms and distance from your university – then book a viewing online.</p>
-            <div className="mt-6 flex gap-3">
-              <Link to="/homes" className="px-5 py-3 rounded-lg bg-slate-900 text-white">Search homes</Link>
-              <Link to="/rooms" className="px-5 py-3 rounded-lg border border-slate-300">Browse rooms only →</Link>
-            </div>
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute top-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-indigo-200 blur-3xl opacity-30"/>
+          <div className="absolute bottom-[-10%] right-[-10%] h-[500px] w-[500px] rounded-full bg-sky-200 blur-3xl opacity-40"/>
+          <div className="absolute inset-0 bg-gradient-to-b from-white via-indigo-50/60 to-white"/>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 pt-10 md:pt-16 pb-10">
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white/70 px-3 py-1 text-sm text-indigo-700">
+                <Sparkles className="h-4 w-4"/>
+                Student lettings made simple
+              </div>
+              <h1 className="mt-4 text-4xl md:text-6xl font-bold tracking-tight">
+                Find your next student home
+                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-sky-500">in minutes</span>
+              </h1>
+              <p className="mt-4 text-lg text-slate-600 max-w-xl">
+                Search verified houses and rooms near your university and book a viewing online. No hidden fees. No endless emails.
+              </p>
 
-            <form onSubmit={onSearch} className="mt-8 bg-white rounded-xl shadow-sm border border-slate-200 p-3 flex flex-col md:flex-row gap-3">
-              <input value={q} onChange={e=>setQ(e.target.value)} className="flex-1 px-4 py-3 rounded-lg border border-slate-300" placeholder="e.g. Headingley, Fallowfield, Jesmond…" />
-              <select value={uniId} onChange={e=>setUniId(e.target.value)} className="px-4 py-3 rounded-lg border border-slate-300">
-                <option value="">Near university (any)</option>
-                {universities.map(u=> (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
-              <button className="px-5 py-3 rounded-lg bg-indigo-600 text-white">Search</button>
-            </form>
+              <form onSubmit={onSearch} className="mt-6 bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-slate-200 p-3 flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400"/>
+                  <input value={q} onChange={e=>setQ(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Search areas, e.g. Headingley, Jesmond…" />
+                </div>
+                <select value={uniId} onChange={e=>setUniId(e.target.value)} className="px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Near university (any)</option>
+                  {universities.map(u=> (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+                <button className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition">
+                  <Search className="h-5 w-5"/>
+                  Search
+                </button>
+              </form>
+
+              <div className="mt-4 flex items-center gap-6 text-sm text-slate-600">
+                <div className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-500"/> Verified listings</div>
+                <div className="inline-flex items-center gap-2"><CalendarClock className="h-4 w-4 text-indigo-500"/> Instant viewing booking</div>
+                <div className="inline-flex items-center gap-2"><Users className="h-4 w-4 text-sky-500"/> Built for students</div>
+              </div>
+            </motion.div>
+
+            <motion.div className="relative" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 }}>
+              <div className="relative rounded-3xl border border-slate-200 bg-white shadow-sm p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {loading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="h-40 rounded-xl bg-slate-100 animate-pulse" />
+                    ))
+                  ) : (
+                    featured.slice(0,4).map(f => (
+                      <div key={f.id} className="rounded-xl overflow-hidden border">
+                        <PropertyCard p={f} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div className="absolute -bottom-3 -right-3 rounded-2xl bg-indigo-600 text-white px-4 py-2 shadow-lg inline-flex items-center gap-2">
+                <Home className="h-4 w-4"/> Popular near you
+              </div>
+            </motion.div>
           </div>
+
+          {error && (
+            <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-4 py-12">
-        <h2 className="text-2xl font-semibold text-slate-900">How it works</h2>
-        <div className="grid md:grid-cols-3 gap-6 mt-6">
-          {[
-            {title: 'Search your area', text: 'Type your university or favourite neighbourhood and filter by price, bedrooms and distance.'},
-            {title: 'Compare homes & rooms', text: 'View photos, key features and travel time to campus so you can shortlist quickly.'},
-            {title: 'Book your viewing online', text: 'Pick a time that works for you. Your slot is reserved instantly, and the landlord gets notified.'},
-          ].map((b, i)=> (
-            <div key={i} className="bg-white rounded-xl border p-6">
-              <h3 className="font-semibold text-slate-900">{b.title}</h3>
-              <p className="mt-2 text-slate-600 text-sm">{b.text}</p>
-            </div>
-          ))}
+      {/* Trust bar */}
+      <section className="border-y bg-slate-50/50">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center text-slate-600">
+          <div className="flex items-center justify-center gap-2"><Building2 className="h-5 w-5 text-slate-400"/> Partnered landlords</div>
+          <div className="flex items-center justify-center gap-2"><Home className="h-5 w-5 text-slate-400"/> Whole homes</div>
+          <div className="flex items-center justify-center gap-2"><BedDouble className="h-5 w-5 text-slate-400"/> Rooms in shared houses</div>
+          <div className="flex items-center justify-center gap-2"><MapPin className="h-5 w-5 text-slate-400"/> Near top universities</div>
         </div>
       </section>
 
-      <section className="bg-slate-900">
-        <div className="max-w-6xl mx-auto px-4 py-12 text-white">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
-            <div>
-              <h2 className="text-2xl font-semibold">One dashboard for all your student lets</h2>
-              <p className="mt-3 text-slate-300">List your student properties, set viewing availability, and receive qualified enquiries from verified students.</p>
-              <ul className="list-disc list-inside mt-3 text-slate-300 space-y-1">
-                <li>Add whole houses or individual rooms</li>
-                <li>Control your viewing slots</li>
-                <li>Keep track of bookings in one place</li>
-              </ul>
-              <Link to="/landlords" className="inline-block mt-4 px-5 py-3 rounded-lg bg-white text-slate-900">List my property</Link>
-            </div>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
-              <p className="text-slate-200">A clear, simple dashboard for landlords to manage properties, slots and bookings.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="max-w-6xl mx-auto px-4 py-12">
+      {/* Featured properties */}
+      <section className="max-w-7xl mx-auto px-4 md:px-6 py-12">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold text-slate-900">Featured properties</h2>
-          <Link to="/homes" className="text-indigo-600">View all</Link>
+          <h2 className="text-2xl md:text-3xl font-semibold">Featured properties</h2>
+          <Link to="/homes" className="inline-flex items-center gap-1 text-indigo-600 hover:underline">View all <ArrowRight className="h-4 w-4"/></Link>
         </div>
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6">
-          {featured.map(f => <PropertyCard key={f.id} p={f} />)}
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-64 rounded-xl bg-slate-100 animate-pulse" />
+            ))
+          ) : (
+            featured.map(f => <PropertyCard key={f.id} p={f} />)
+          )}
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-4 py-12">
-        <h2 className="text-2xl font-semibold text-slate-900">FAQ</h2>
-        <div className="mt-4 grid md:grid-cols-2 gap-6">
+      {/* Landlord pitch */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-indigo-600 to-sky-500"/>
+        <div className="absolute inset-0 -z-10 opacity-20" style={{ backgroundImage: `radial-gradient(circle at 20% 20%, white 0, transparent 40%), radial-gradient(circle at 80% 0%, white 0, transparent 35%)` }} />
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-14 text-white">
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div>
+              <h2 className="text-3xl font-semibold">One dashboard for all your student lets</h2>
+              <p className="mt-3 text-white/80 max-w-lg">List properties, set viewing availability, and receive qualified enquiries from verified students.</p>
+              <ul className="mt-4 space-y-2 text-white/90">
+                <li className="flex items-center gap-2"><ShieldCheck className="h-5 w-5"/> Verified students only</li>
+                <li className="flex items-center gap-2"><CalendarClock className="h-5 w-5"/> Control your viewing slots</li>
+                <li className="flex items-center gap-2"><Home className="h-5 w-5"/> List homes or individual rooms</li>
+              </ul>
+              <Link to="/landlord" className="mt-6 inline-flex items-center gap-2 bg-white text-slate-900 px-5 py-3 rounded-xl shadow hover:shadow-md transition">
+                List my property <ArrowRight className="h-4 w-4"/>
+              </Link>
+            </div>
+            <div className="bg-white/10 rounded-2xl border border-white/20 p-6 backdrop-blur">
+              <p className="text-white/90">A clear, modern dashboard to manage properties, slots and bookings — all in one place.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQs */}
+      <section className="max-w-7xl mx-auto px-4 md:px-6 py-12">
+        <h2 className="text-2xl md:text-3xl font-semibold">Frequently asked questions</h2>
+        <div className="mt-6 grid md:grid-cols-2 gap-6">
           {[
-            {q: 'Do I have to pay to use this site as a student?', a: 'No. Searching and booking viewings is free for students.'},
-            {q: 'Can I just rent a room instead of a whole house?', a: "Yes. Filter by 'Rooms only' to see rooms available in shared student houses."},
-            {q: 'How do viewing bookings work?', a: 'Pick a time that suits you from the available slots on the property page. Once you confirm, that slot is reserved and the landlord is notified.'},
-            {q: 'Do you handle contracts and rent payments?', a: "No. We connect you with landlords and help organise viewings. Contracts and rent are handled directly between you and the landlord or letting agent."},
+            {q: 'Is this free for students?', a: 'Yes. Searching and booking viewings is free for students.'},
+            {q: 'Can I just rent a room?', a: 'Yes. Filter by Rooms to see rooms available in shared houses.'},
+            {q: 'How do bookings work?', a: 'Pick a time that suits you from the available slots. Once confirmed, the slot is reserved and the landlord is notified.'},
+            {q: 'Do you handle contracts?', a: 'No. We connect students and landlords and help organise viewings. Contracts and rent are handled directly.'},
           ].map((item, i)=> (
-            <div key={i} className="bg-white rounded-xl border p-6">
-              <h3 className="font-semibold text-slate-900">{item.q}</h3>
+            <div key={i} className="bg-white rounded-2xl border p-6">
+              <h3 className="font-semibold">{item.q}</h3>
               <p className="mt-2 text-slate-600 text-sm">{item.a}</p>
             </div>
           ))}
         </div>
-        <div className="mt-8 bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-slate-900">Contact</h3>
-          <p className="mt-2 text-slate-600 text-sm">Email: hello@uninesthub.example</p>
+
+        <div className="mt-10 rounded-2xl border p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-semibold">Still have questions?</h3>
+            <p className="text-slate-600 text-sm">Email us: hello@uninesthub.example</p>
+          </div>
+          <Link to="/homes" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white">Start searching <ArrowRight className="h-4 w-4"/></Link>
+        </div>
+      </section>
+
+      {/* Footer CTA */}
+      <section className="bg-slate-900">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 text-white">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div>
+              <h3 className="text-2xl font-semibold">Ready to find your next place?</h3>
+              <p className="mt-2 text-white/80">Join thousands of students who’ve used our platform to book viewings in minutes.</p>
+            </div>
+            <div className="flex gap-3">
+              <Link to="/homes" className="px-5 py-3 rounded-xl bg-white text-slate-900">Search homes</Link>
+              <Link to="/rooms" className="px-5 py-3 rounded-xl border border-white/30 text-white">Browse rooms</Link>
+            </div>
+          </div>
         </div>
       </section>
     </div>
